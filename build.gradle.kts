@@ -22,7 +22,7 @@ android {
         consumerProguardFiles("consumer-rules.pro")
 
         // Version information
-        buildConfigField("String", "SDK_VERSION", "\"1.0.0\"")
+        buildConfigField("String", "SDK_VERSION", "\"1.0.1\"")
     }
 
     buildTypes {
