@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.github.sohaibshaheen"
-version = "1.0.3"
+version = "1.0.5"
 
 android {
     namespace = "com.mahimeta.sdk"
@@ -43,12 +43,6 @@ android {
             "-Xjvm-default=all",
         )
     }
-
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
-    }
 }
 
 dependencies {
@@ -66,7 +60,7 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
 
-// Simplified sources jar task
+// Sources jar task
 val sourcesJar by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")
     from(android.sourceSets["main"].java.srcDirs)
@@ -80,8 +74,29 @@ afterEvaluate {
                 artifactId = "mahimeta-sdk"
                 version = version
 
-                from(components["release"])
+                // Main AAR artifact
+                artifact("$buildDir/outputs/aar/${project.name}-release.aar") {
+                    builtBy(tasks.named("assembleRelease"))
+                }
+
+                // Sources JAR
                 artifact(sourcesJar.get())
+
+                // Add dependencies to POM
+                pom.withXml {
+                    val dependenciesNode = asNode().appendNode("dependencies")
+
+                    // List all your implementation dependencies here
+                    configurations.implementation.get().allDependencies.forEach {
+                        if (it.group != null && it.name != "unspecified" && it.version != null) {
+                            val dependencyNode = dependenciesNode.appendNode("dependency")
+                            dependencyNode.appendNode("groupId", it.group)
+                            dependencyNode.appendNode("artifactId", it.name)
+                            dependencyNode.appendNode("version", it.version)
+                            dependencyNode.appendNode("scope", "runtime")
+                        }
+                    }
+                }
 
                 pom {
                     name.set("Mahimeta Ad SDK")
@@ -112,9 +127,4 @@ afterEvaluate {
             }
         }
     }
-}
-
-// Ensure sources jar is built before metadata generation
-tasks.withType<GenerateModuleMetadata> {
-    dependsOn(tasks.named("sourcesJar"))
 }
