@@ -95,6 +95,11 @@ tasks.register<Jar>("sourcesJar") {
 }
 
 afterEvaluate {
+    // Ensure sourcesJar task runs before generating metadata
+    tasks.named("generateMetadataFileForMavenPublication") {
+        dependsOn(tasks.named("sourcesJar"))
+    }
+    
     publishing {
         publications {
             create<MavenPublication>("maven") {
