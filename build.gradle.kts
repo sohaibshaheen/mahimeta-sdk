@@ -1,20 +1,10 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle:8.1.0")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.22")
-    }
-}
-
 plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+    id("com.android.library") version "8.0.2"
+    id("org.jetbrains.kotlin.android") version "1.9.22"
     id("maven-publish")
-    id("com.github.dcendents.android-maven") version "2.1"
 }
+// This is needed for JitPack
+group = "com.github.sohaibshaheen"
 
 // Configuration to hold embedded dependencies
 val embedded = configurations.create("embedded")
@@ -108,9 +98,10 @@ afterEvaluate {
     publishing {
         publications {
             create<MavenPublication>("maven") {
+                from(components["release"])
                 groupId = "com.github.sohaibshaheen"
                 artifactId = "mahimeta-sdk"
-                version = "1.0.0"
+                version = "1.0.1"
 
                 // Include the AAR
                 artifact("$buildDir/outputs/aar/MahimetaSDK-release.aar") {

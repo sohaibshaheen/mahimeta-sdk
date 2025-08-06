@@ -5,15 +5,14 @@ before_install:
   - chmod +x gradlew
   - ./gradlew --version
 
+android:
+  buildToolsVersion: "34.0.0"
+  compileSdk: 34
+  targetSdk: 34
+  minSdk: 24
+
 build:
   gradle:
     - 8.1.0
-
-install:
-  - ./gradlew build publishToMavenLocal -x test --stacktrace
-
-jdk:
-  - openjdk17
-
-jdk_switcher:
-  enabled: true
+  commands:
+    - ./gradlew build publishToMavenLocal -x test --stacktrace
