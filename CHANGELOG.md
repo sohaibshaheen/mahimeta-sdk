@@ -2,6 +2,18 @@
 
 All notable changes to the Mahimeta Ad SDK will be documented in this file.
 
+## [1.0.0] - 2025-08-07
+
+### Added
+- Initial release of Mahimeta Ad SDK
+- JitPack publishing support
+- Basic ad loading and display functionality
+- Sample app integration guide
+
+### Changed
+- Updated build configuration for JitPack compatibility
+- Improved build scripts and documentation
+
 ## [1.0.1] - 2025-07-04
 
 ### Added

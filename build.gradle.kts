@@ -1,7 +1,19 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.1.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.22")
+    }
+}
+
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("maven-publish")
+    id("com.github.dcendents.android-maven") version "2.1"
 }
 
 // Configuration to hold embedded dependencies
@@ -96,9 +108,9 @@ afterEvaluate {
     publishing {
         publications {
             create<MavenPublication>("maven") {
-                groupId = "com.github.syedtehrimabbas"
-                artifactId = "MahimetaSDK"
-                version = "1.1.0"
+                groupId = "com.github.sohaibshaheen"
+                artifactId = "mahimeta-sdk"
+                version = "1.0.0"
 
                 // Include the AAR
                 artifact("$buildDir/outputs/aar/MahimetaSDK-release.aar") {

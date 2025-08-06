@@ -2,11 +2,18 @@ jdk:
   - openjdk17
 
 before_install:
-  - chmod +x gradlew || true
+  - chmod +x gradlew
   - ./gradlew --version
+
+build:
+  gradle:
+    - 8.1.0
 
 install:
   - ./gradlew build publishToMavenLocal -x test --stacktrace
+
+jdk:
+  - openjdk17
 
 jdk_switcher:
   enabled: true
