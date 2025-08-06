@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.github.sohaibshaheen"
-version = "1.0.7"
+version = "1.0.8"
 
 android {
     namespace = "com.mahimeta.sdk"
@@ -77,8 +77,8 @@ afterEvaluate {
                 version = version
 
                 // Main AAR artifact
-                artifact("${layout.buildDirectory}/outputs/aar/${project.name}-release.aar") {
-                    builtBy(tasks.named("assembleRelease"))
+                artifact("$buildDir/outputs/aar/${project.name}-release.aar") {
+                    builtBy(tasks.getByName("assembleRelease"))
                 }
 
                 // Sources JAR
