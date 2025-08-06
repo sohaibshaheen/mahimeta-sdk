@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="MahimetaAdView">
+        <attr name="mahimetaAdUnitId" format="string" />
+        <attr name="mahimetaAdSize" format="enum">
+            <enum name="banner" value="0" />
+            <enum name="largeBanner" value="1" />
+            <enum name="mediumRectangle" value="2" />
+            <enum name="fullBanner" value="3" />
+            <enum name="leaderboard" value="4" />
+        </attr>
+    </declare-styleable>
+</resources>
