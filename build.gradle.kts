@@ -1,19 +1,19 @@
 plugins {
-    id("com.android.library") version "8.0.2"
-    id("org.jetbrains.kotlin.android") version "1.9.22"
+    id("com.android.library") version "8.3.2"  // Updated to latest stable version
+    id("org.jetbrains.kotlin.android") version "1.9.23"  // Updated Kotlin version
     id("maven-publish")
+    id("signing")  // Optional: for signing artifacts if publishing to Maven Central
 }
-// This is needed for JitPack
-group = "com.github.sohaibshaheen"
 
-// Configuration to hold embedded dependencies
-val embedded = configurations.create("embedded")
+group = "com.github.sohaibshaheen"
+version = "1.0.2"  // Define version here for consistency
+
 android {
     namespace = "com.mahimeta.sdk"
     compileSdk = 34
 
     buildFeatures {
-        buildConfig = true  // ← Add this
+        buildConfig = true
     }
 
     defaultConfig {
@@ -22,132 +22,124 @@ android {
         consumerProguardFiles("consumer-rules.pro")
 
         // Version information
-        buildConfigField("String", "SDK_VERSION", "\"1.0.1\"")
+        buildConfigField("String", "SDK_VERSION", "\"$version\"")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false  // Disable minification for now to debug
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
-        debug {
-            isMinifyEnabled = false
+        create("staging") {  // Added staging build type
+            initWith(getByName("debug"))
+            matchingFallbacks.add("debug")
         }
     }
 
-    // Configure source sets to include both Java and Kotlin sources
-    sourceSets {
-        getByName("main") {
-            java.srcDirs("src/main/java", "src/main/kotlin")
-            res.srcDirs("src/main/res")
-            manifest.srcFile("src/main/AndroidManifest.xml")
-        }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17  // Updated to Java 17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // Enable Java 8 features
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
+        freeCompilerArgs = freeCompilerArgs + listOf(
+            "-opt-in=kotlin.RequiresOptIn",
+            "-Xjvm-default=all",
+        )
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
     }
 }
 
 dependencies {
-    // AndroidX dependencies
-    implementation("androidx.core:core-ktx:1.16.0")
-    implementation("androidx.appcompat:appcompat:1.7.1")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("com.google.android.gms:play-services-ads:22.6.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.1")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.1")
+    // AndroidX
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
 
-    // GSON for JSON parsing
+    // Google Play Services
+    implementation("com.google.android.gms:play-services-ads:23.0.0")
+
+    // Lifecycle
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+
+    // JSON
     implementation("com.google.code.gson:gson:2.10.1")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
-    // Add dependencies to embedded configuration
-    embedded("com.google.code.gson:gson:2.10.1")
-    embedded("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    embedded("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-
+    // Testing
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("io.mockk:mockk:1.13.9")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
 
-// Task to generate sources JAR
-tasks.register<Jar>("sourcesJar") {
+// Sources and Javadoc tasks
+val sourcesJar by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")
-    from(android.sourceSets.getByName("main").java.srcDirs)
+    from(android.sourceSets["main"].java.srcDirs)
+}
+
+val javadoc by tasks.registering(Javadoc::class) {
+    source = android.sourceSets["main"].java.srcDirs
+    classpath += project.files(android.bootClasspath.joinToString(File.pathSeparator))
+    android.libraryVariants.forEach { variant ->
+        classpath += variant.javaCompileProvider.get().classpath
+    }
+    excludes("**/R.html", "**/R.*.html", "**/index.html")
+}
+
+val javadocJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("javadoc")
+    from(javadoc.get().destinationDir)
 }
 
 afterEvaluate {
-    // Ensure sourcesJar task runs before generating metadata
-    tasks.named("generateMetadataFileForMavenPublication") {
-        dependsOn(tasks.named("sourcesJar"))
-    }
-    
     publishing {
         publications {
             create<MavenPublication>("maven") {
-                from(components["release"])
+                // Main artifacts
                 groupId = "com.github.sohaibshaheen"
                 artifactId = "mahimeta-sdk"
-                version = "1.0.1"
+                version = version
 
-                // Include the AAR
-                artifact("$buildDir/outputs/aar/MahimetaSDK-release.aar") {
-                    builtBy(tasks.getByName("bundleReleaseAar"))
-                }
+                from(components["release"])
+                artifact(sourcesJar.get())
+                artifact(javadocJar.get())
 
-                // Include sources
-                artifact(tasks["sourcesJar"])
-
-                // Sources JAR is already included
-
-                // Add dependencies to POM
-                pom.withXml {
-                    val dependenciesNode = asNode().appendNode("dependencies")
-
-                    // Add Gson
-                    val gsonNode = dependenciesNode.appendNode("dependency")
-                    gsonNode.appendNode("groupId", "com.google.code.gson")
-                    gsonNode.appendNode("artifactId", "gson")
-                    gsonNode.appendNode("version", "2.10.1")
-                    gsonNode.appendNode("scope", "runtime")
-
-                    // Add Coroutines
-                    val coroutinesNode = dependenciesNode.appendNode("dependency")
-                    coroutinesNode.appendNode("groupId", "org.jetbrains.kotlinx")
-                    coroutinesNode.appendNode("artifactId", "kotlinx-coroutines-android")
-                    coroutinesNode.appendNode("version", "1.7.3")
-                    coroutinesNode.appendNode("scope", "runtime")
-                }
-
-                // Configure the POM
+                // POM configuration
                 pom {
                     name.set("Mahimeta Ad SDK")
-                    description.set("A lightweight Android SDK for displaying ads with dynamic configuration from Mahimeta dashboard")
-                    url.set("https://github.com/syedtehrimabbas/MahimetaSDK")
+                    description.set("A lightweight Android SDK for displaying ads with dynamic configuration")
+                    url.set("https://github.com/sohaibshaheen/mahimeta-sdk")
+
                     licenses {
                         license {
                             name.set("Apache License 2.0")
                             url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
                         }
                     }
+
                     developers {
                         developer {
                             id.set("syedtehrimabbas")
@@ -155,13 +147,31 @@ afterEvaluate {
                             email.set("syedtehrimabbas@gmail.com")
                         }
                     }
+
                     scm {
-                        connection.set("scm:git:github.com/syedtehrimabbas/MahimetaSDK.git")
-                        developerConnection.set("scm:git:ssh://github.com/syedtehrimabbas/MahimetaSDK.git")
-                        url.set("https://github.com/syedtehrimabbas/MahimetaSDK/tree/main")
+                        connection.set("scm:git:github.com/sohaibshaheen/mahimeta-sdk.git")
+                        developerConnection.set("scm:git:ssh://github.com/sohaibshaheen/mahimeta-sdk.git")
+                        url.set("https://github.com/sohaibshaheen/mahimeta-sdk")
                     }
                 }
             }
         }
+
+        // Optional: Configure repository for publishing
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/sohaibshaheen/mahimeta-sdk")
+                credentials {
+                    username = project.findProperty("gpr.user") as String? ?: System.getenv("GITHUB_USERNAME")
+                    password = project.findProperty("gpr.key") as String? ?: System.getenv("GITHUB_TOKEN")
+                }
+            }
+        }
     }
+}
+
+// Task to ensure sourcesJar is built before metadata generation
+tasks.withType<GenerateModuleMetadata> {
+    dependsOn(tasks.named("sourcesJar"))
 }
