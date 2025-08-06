@@ -6,7 +6,7 @@ import com.google.android.gms.ads.AdSize
 /**
  * Custom AdSize implementation with support for standard, adaptive and fluid ad sizes
  */
-class MahimetaAdSize constructor(
+class MahimetaAdSize(
     internal val width: Int,
     internal val height: Int,
     internal val type: AdSizeType = AdSizeType.STANDARD
@@ -115,14 +115,6 @@ class MahimetaAdSize constructor(
         result = 31 * result + height
         result = 31 * result + type.hashCode()
         return result
-    }
-
-    override fun toString(): String {
-        return when (type) {
-            AdSizeType.STANDARD -> "STANDARD($width x $height)"
-            AdSizeType.ADAPTIVE -> "ADAPTIVE($width x $height)"
-            AdSizeType.FLUID -> "FLUID"
-        }
     }
 }
 

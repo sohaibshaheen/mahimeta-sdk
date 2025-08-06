@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.github.sohaibshaheen"
-version = "1.0.6"
+version = "1.0.7"
 
 android {
     namespace = "com.mahimeta.sdk"
@@ -33,6 +33,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -46,6 +47,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
@@ -75,7 +77,7 @@ afterEvaluate {
                 version = version
 
                 // Main AAR artifact
-                artifact("$buildDir/outputs/aar/${project.name}-release.aar") {
+                artifact("${layout.buildDirectory}/outputs/aar/${project.name}-release.aar") {
                     builtBy(tasks.named("assembleRelease"))
                 }
 

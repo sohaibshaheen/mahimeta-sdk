@@ -191,13 +191,6 @@ internal object DeviceInfo {
     }
 
     /**
-     * Get user agent string
-     */
-    fun getUserAgent(context: Context): String {
-        return System.getProperty("http.agent") ?: ""
-    }
-
-    /**
      * Check if the device is an emulator
      */
     private fun isEmulator(): Boolean {
