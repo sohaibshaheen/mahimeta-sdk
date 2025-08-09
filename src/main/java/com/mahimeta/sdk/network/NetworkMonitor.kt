@@ -15,10 +15,12 @@ import com.mahimeta.sdk.analytics.AnalyticsManager
 import com.mahimeta.sdk.analytics.model.AnalyticsEvent
 import com.mahimeta.sdk.analytics.model.AnalyticsEventBuilder
 import com.mahimeta.sdk.utils.DeviceInfo
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLConnection
 import java.net.NetworkInterface
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -113,35 +115,40 @@ internal class NetworkMonitor private constructor(private val context: Context) 
     }
 
     private fun checkIpAddress() {
-        try {
-            val oldIp = currentIp.get()
-            val newIp = getIPv4Address()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val oldIp = currentIp.get()
+                val newIp = getPublicIpAddress()
 
-            // Only proceed if IP has actually changed
-            if (oldIp != newIp) {
-                currentIp.set(newIp)
+                // Only proceed if IP has actually changed
+                if (oldIp != newIp) {
+                    currentIp.set(newIp)
 
-                // Only log if we had a previous IP (avoid logging initial IP set)
-                if (oldIp.isNotEmpty()) {
-                    onIpChanged(oldIp, newIp)
+                    // Only log if we had a previous IP (avoid logging initial IP set)
+                    if (oldIp.isNotEmpty()) {
+                        onIpChanged(oldIp, newIp)
+                    }
+
+                    // Update device info with new IP
+                    DeviceInfo.setIpAddress(newIp)
+
+                    // Log the network change
+                    val event = AnalyticsEventBuilder(context)
+                        .setEventType(AnalyticsEvent.EventType.NETWORK_CHANGE)
+                        .addMetadata("ip_address", newIp)
+                        .addMetadata("previous_ip", oldIp)
+                        .addMetadata("network_type", getCurrentNetworkType())
+                        .addMetadata("is_public_ip", !newIp.startsWith("10.") && 
+                                                  !newIp.startsWith("192.168.") && 
+                                                  !newIp.startsWith("172."))
+                        .build()
+
+                    AnalyticsManager.trackEvent(event)
                 }
-
-                // Update device info with new IP
-                DeviceInfo.setIpAddress(newIp)
-
-                // Log the network change
-                val event = AnalyticsEventBuilder(context)
-                    .setEventType(AnalyticsEvent.EventType.NETWORK_CHANGE)
-                    .addMetadata("ip_address", newIp)
-                    .addMetadata("previous_ip", oldIp)
-                    .addMetadata("network_type", getCurrentNetworkType())
-                    .build()
-
-                AnalyticsManager.trackEvent(event)
-            }
-        } catch (e: Exception) {
-            if (BuildConfig.DEBUG) {
-                Log.e("NetworkMonitor", "Error checking IP address", e)
+            } catch (e: Exception) {
+                if (BuildConfig.DEBUG) {
+                    Log.e("NetworkMonitor", "Error checking IP address", e)
+                }
             }
         }
     }
@@ -176,10 +183,169 @@ internal class NetworkMonitor private constructor(private val context: Context) 
         )
     }
 
-    private fun getIPv4Address(): String {
+    private suspend fun getPublicIpAddress(): String = withContext(Dispatchers.IO) {
+        // First try to get the public IP from network interfaces (works for mobile data)
+        val mobileIp = getMobileDataIpAddress()
+        if (mobileIp.isNotEmpty() && isPublicIp(mobileIp)) {
+            return@withContext mobileIp
+        }
+        
+        // If no public IP found from mobile data, try WiFi interface
+        val wifiIp = getWifiIpAddress()
+        if (wifiIp.isNotEmpty() && isPublicIp(wifiIp)) {
+            return@withContext wifiIp
+        }
+        
+        // If still no public IP, try external services as last resort
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
+            // Try multiple IP checking services as fallback
+            val ipServices = listOf(
+                "https://api.ipify.org?format=text",
+                "https://api64.ipify.org?format=text",
+                "https://ipinfo.io/ip",
+                "https://ifconfig.me/ip",
+                "https://icanhazip.com"
+            )
 
+            for (service in ipServices) {
+                try {
+                    val url = URL(service)
+                    val connection = withTimeoutOrNull(2000) {
+                        url.openConnection() as HttpURLConnection
+                    } ?: continue
+                    
+                    connection.connectTimeout = 2000 // 2 seconds timeout
+                    connection.readTimeout = 2000
+                    
+                    val ip = withTimeoutOrNull(2000) {
+                        connection.inputStream.bufferedReader().use { it.readLine() }.trim()
+                    }
+                    
+                    if (!ip.isNullOrEmpty() && isPublicIp(ip)) {
+                        return@withContext ip
+                    }
+                } catch (e: Exception) {
+                    if (BuildConfig.DEBUG) {
+                        Log.d("NetworkMonitor", "Failed to get IP from $service: ${e.message}")
+                    }
+                    // Try next service
+                }
+            }
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.e("NetworkMonitor", "Error in getPublicIpAddress", e)
+            }
+        }
+        
+        // Fallback to any available IP if no public IP found
+        return@withContext getAnyAvailableIpAddress()
+    }
+    
+    private fun getMobileDataIpAddress(): String {
+        return try {
+            val networkInterfaces = NetworkInterface.getNetworkInterfaces()
+            while (networkInterfaces.hasMoreElements()) {
+                val networkInterface = networkInterfaces.nextElement()
+                // Skip loopback and inactive interfaces
+                if (networkInterface.isLoopback || !networkInterface.isUp) continue
+                
+                // Check if this is a mobile data interface
+                if (networkInterface.name.startsWith("rmnet") || 
+                    networkInterface.name.startsWith("rmnet_data") ||
+                    networkInterface.name.startsWith("p2p")) {
+                    
+                    for (address in networkInterface.inetAddresses) {
+                        val hostAddress = address.hostAddress ?: continue
+                        if (hostAddress.contains(':')) continue // Skip IPv6
+                        return hostAddress
+                    }
+                }
+            }
+            ""
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.e("NetworkMonitor", "Error getting mobile data IP", e)
+            }
+            ""
+        }
+    }
+    
+    private fun getWifiIpAddress(): String {
+        return try {
+            val networkInterfaces = NetworkInterface.getNetworkInterfaces()
+            while (networkInterfaces.hasMoreElements()) {
+                val networkInterface = networkInterfaces.nextElement()
+                // Skip loopback and inactive interfaces
+                if (networkInterface.isLoopback || !networkInterface.isUp) continue
+                
+                // Check if this is a WiFi interface
+                if (networkInterface.name.startsWith("wlan") || 
+                    networkInterface.name.startsWith("ap") ||
+                    networkInterface.name.startsWith("eth")) {
+                    
+                    for (address in networkInterface.inetAddresses) {
+                        val hostAddress = address.hostAddress ?: continue
+                        if (hostAddress.contains(':')) continue // Skip IPv6
+                        if (hostAddress.startsWith("192.168.") || 
+                            hostAddress.startsWith("172.") || 
+                            hostAddress.startsWith("10.")) {
+                            continue // Skip private IPs
+                        }
+                        return hostAddress
+                    }
+                }
+            }
+            ""
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.e("NetworkMonitor", "Error getting WiFi IP", e)
+            }
+            ""
+        }
+    }
+    
+    private fun getAnyAvailableIpAddress(): String {
+        return try {
+            val networkInterfaces = NetworkInterface.getNetworkInterfaces()
+            while (networkInterfaces.hasMoreElements()) {
+                val networkInterface = networkInterfaces.nextElement()
+                if (networkInterface.isLoopback || !networkInterface.isUp) continue
+                
+                for (address in networkInterface.inetAddresses) {
+                    val hostAddress = address.hostAddress ?: continue
+                    if (hostAddress.contains(':')) continue // Skip IPv6
+                    if (hostAddress == "127.0.0.1") continue
+                    return hostAddress
+                }
+            }
+            ""
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.e("NetworkMonitor", "Error getting any IP address", e)
+            }
+            ""
+        }
+    }
+    
+    private fun isPublicIp(ip: String): Boolean {
+        return ip.isNotBlank() && 
+               ip != "127.0.0.1" && 
+               ip != "0.0.0.0" && 
+               !ip.startsWith("10.") && 
+               !ip.startsWith("192.168.") &&
+               !ip.startsWith("172.16.") && !ip.startsWith("172.17.") &&
+               !ip.startsWith("172.18.") && !ip.startsWith("172.19.") &&
+               !ip.startsWith("172.20.") && !ip.startsWith("172.21.") &&
+               !ip.startsWith("172.22.") && !ip.startsWith("172.23.") &&
+               !ip.startsWith("172.24.") && !ip.startsWith("172.25.") &&
+               !ip.startsWith("172.26.") && !ip.startsWith("172.27.") &&
+               !ip.startsWith("172.28.") && !ip.startsWith("172.29.") &&
+               !ip.startsWith("172.30.") && !ip.startsWith("172.31.")
+    }
+    
+    private fun getLocalIPv4Address(): String {
+        return try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
             while (interfaces.hasMoreElements()) {
                 val intf = interfaces.nextElement()
                 // Skip loopback and inactive interfaces
@@ -198,13 +364,13 @@ internal class NetworkMonitor private constructor(private val context: Context) 
                     }
                 }
             }
+            ""
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
-                Log.e("NetworkMonitor", "Error getting IPv4 address", e)
+                Log.e("NetworkMonitor", "Error getting local IPv4 address", e)
             }
+            ""
         }
-
-        return ""
     }
 
     companion object {

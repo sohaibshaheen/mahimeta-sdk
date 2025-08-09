@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.github.sohaibshaheen"
-version = "1.0.8"
+version = "1.0.9"
 
 android {
     namespace = "com.mahimeta.sdk"
