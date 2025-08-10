@@ -107,6 +107,7 @@ afterEvaluate {
                             dependencyNode.appendNode("scope", "runtime")
                         }
                     }
+                    asNode().appendNode("properties").appendNode("includeSources").setValue("false")
                 }
 
                 pom {
