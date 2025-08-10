@@ -1,10 +1,20 @@
 package com.mahimeta.sdk.utils
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.telephony.TelephonyManager
+import android.util.DisplayMetrics
+import android.util.Log
+import android.view.WindowManager
+import androidx.core.content.ContextCompat
+import com.mahimeta.sdk.BuildConfig
 import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 
 /**
@@ -262,20 +272,79 @@ internal object DeviceInfo {
     }
 
     /**
-     * Get device locale information
+     * Get device locale information including actual country from multiple sources
      */
-    fun getLocaleInfo(): Map<String, String> {
+    fun getLocaleInfo(context: Context? = null): Map<String, String> {
         val locale = Locale.getDefault()
-        return mapOf(
-            "country" to locale.country,
-            "language" to locale.language,
-            "display_country" to locale.displayCountry,
-            "display_language" to locale.displayLanguage,
-            "display_name" to locale.displayName,
-            "display_variant" to locale.displayVariant,
-            "iso3_country" to locale.isO3Country,
-            "iso3_language" to locale.isO3Language,
-            "variant" to locale.variant
-        )
+        val result = mutableMapOf<String, String>()
+        
+        // Get country from SIM card (most reliable if available)
+        val simCountry = context?.let { getSimCountryIso(it) }?.takeIf { it.isNotBlank() }
+        // Get country from network
+        val networkCountry = context?.let { getNetworkCountryIso(it) }?.takeIf { it.isNotBlank() }
+        // Get country from locale (least reliable)
+        val localeCountry = locale.country
+        
+        // Determine the best available country code
+        val actualCountry = simCountry ?: networkCountry ?: localeCountry ?: ""
+        
+        // Get country name from country code
+        val countryName = if (actualCountry.isNotBlank()) {
+            try {
+                Locale("", actualCountry).displayCountry
+            } catch (e: Exception) {
+                ""
+            }
+        } else ""
+        
+        // Add all locale information
+        result["country"] = actualCountry
+        result["country_name"] = countryName
+        result["country_source"] = when {
+            simCountry != null -> "sim"
+            networkCountry != null -> "network"
+            else -> "locale"
+        }
+        
+        // Add other locale information
+        result["language"] = locale.language
+        result["display_country"] = locale.displayCountry
+        result["display_language"] = locale.displayLanguage
+        result["display_name"] = locale.displayName
+        result["display_variant"] = locale.displayVariant
+        result["iso3_country"] = locale.isO3Country
+        result["iso3_language"] = locale.isO3Language
+        result["variant"] = locale.variant
+        
+        // Add timezone information
+        result["timezone"] = TimeZone.getDefault().id
+        
+        return result
+    }
+    
+    /**
+     * Get country code from SIM card
+     */
+    @SuppressLint("HardwareIds", "MissingPermission")
+    private fun getSimCountryIso(context: Context): String? {
+        return try {
+            val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            telephonyManager?.simCountryIso?.uppercase(Locale.US)
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    /**
+     * Get country code from network
+     */
+    @SuppressLint("HardwareIds", "MissingPermission")
+    private fun getNetworkCountryIso(context: Context): String? {
+        return try {
+            val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            telephonyManager?.networkCountryIso?.uppercase(Locale.US)
+        } catch (e: Exception) {
+            null
+        }
     }
 }

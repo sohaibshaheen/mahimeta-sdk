@@ -15,4 +15,6 @@ build:
   gradle:
     - 8.1.0
   commands:
-    - ./gradlew build publishToMavenLocal -x test --stacktrace
+    - ./gradlew assembleRelease -x test --stacktrace
+    # Explicitly skip documentation and sources generation
+    - ./gradlew generateReleaseBuildConfig -x javadoc -x sourcesJar

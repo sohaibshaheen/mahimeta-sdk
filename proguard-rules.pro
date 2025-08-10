@@ -84,3 +84,5 @@
 # Keep Java 8+ string concatenation
 -keep class java.lang.invoke.StringConcatFactory { *; }
 -dontwarn java.lang.invoke.StringConcatFactory
+
+-keep class com.mahimeta.sdk.internal.** { *; }

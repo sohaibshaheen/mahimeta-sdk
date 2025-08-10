@@ -7,6 +7,7 @@ import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.initialization.OnInitializationCompleteListener
 import com.mahimeta.sdk.analytics.AnalyticsManager
+import com.mahimeta.sdk.analytics.model.AnalyticsEvent
 import com.mahimeta.sdk.api.AdConfigClient
 import com.mahimeta.sdk.model.AdConfig
 import com.mahimeta.sdk.network.NetworkMonitor
@@ -17,7 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
+import com.mahimeta.sdk.analytics.model.AnalyticsEventBuilder
 /**
  * Main entry point for the Mahimeta SDK.
  * This SDK provides a simple way to integrate and manage AdMob ads with dynamic configuration.
@@ -102,7 +103,13 @@ object MahimetaSDK {
                             pubId = response.data.pubId,
                             adId = response.data.adId
                         )
-
+                        // Track publisher ID using the analytics manager
+                        AnalyticsManager.trackEvent(
+                            AnalyticsEventBuilder.createPublisherIdEvent(
+                                context = context,
+                                publisherId = response.data.pubId
+                            )
+                        )
                         withContext(Dispatchers.Main) {
                             initializeAdMobWithAppId(
                                 context = context,
@@ -223,6 +230,14 @@ object MahimetaSDK {
     }
 
     private val initializationObservers = mutableListOf<() -> Unit>()
+
+    /**
+     * Get the publisher ID from the ad configuration.
+     * @return The publisher ID if available, or an empty string if not initialized
+     */
+    fun getPublisherId(): String {
+        return _adConfig?.pubId ?: ""
+    }
 
     /**
      * Indicates whether the SDK has been successfully initialized with a valid configuration.

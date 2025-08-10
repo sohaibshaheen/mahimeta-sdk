@@ -87,53 +87,66 @@ internal object AnalyticsManager : Application.ActivityLifecycleCallbacks {
     }
 
     private fun startNewSession() {
-        // Generate a new session ID
-        DeviceInfo.generateNewSessionId()
-        val now = System.currentTimeMillis()
-        sessionStartTime = now
-        lastActivityTime = now
-        totalActiveTimeMs = 0
+        // End any existing session
+        if (sessionStartTime > 0) {
+            endSession()
+        }
+
+        // Start new session
+        sessionStartTime = System.currentTimeMillis()
+        lastActivityTime = sessionStartTime
         adClicksThisSession.set(0)
         adImpressionsThisSession.set(0)
 
-        // Log session start
-        applicationContext?.let {
-            trackEvent(
-                AnalyticsEventBuilder.createSessionStartEvent(it)
-            )
+        val context = applicationContext ?: return
+
+        // Track session start
+        trackEvent(
+            AnalyticsEventBuilder(context)
+                .setEventType(AnalyticsEvent.EventType.SESSION_STARTED)
+                .setAdUnitId("session")
+                .withDeviceInfo(true)
+                .withNetworkInfo(true)
+                .withLocaleInfo(true)
+                .build()
+        )
+
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("AnalyticsManager", "New session started")
         }
     }
 
     private fun endSession() {
+        if (sessionStartTime == 0L) return
+        
         val now = System.currentTimeMillis()
         val sessionDuration = now - sessionStartTime
 
-        // Update active time
-        if (lastActivityTime > 0) {
+        // Update total active time if app is in foreground
+        if (isAppInForeground.get() && lastActivityTime > 0) {
             totalActiveTimeMs += (now - lastActivityTime)
         }
 
-        // Send session metrics
+        val context = applicationContext ?: return
+
+        // Track session metrics
         trackEvent(
-            AnalyticsEventBuilder(applicationContext!!)
+            AnalyticsEventBuilder(context)
                 .setEventType(AnalyticsEvent.EventType.SESSION_METRICS)
                 .setAdUnitId("session_metrics")
                 .addMetadata("session_duration_ms", sessionDuration)
                 .addMetadata("active_time_ms", totalActiveTimeMs)
                 .addMetadata("ad_clicks", adClicksThisSession.get())
                 .addMetadata("ad_impressions", adImpressionsThisSession.get())
-                .addMetadata(
-                    "avg_time_per_click",
-                    if (adClicksThisSession.get() > 0)
-                        totalActiveTimeMs / adClicksThisSession.get()
-                    else 0
-                )
+                .addMetadata("avg_time_per_click", if (adClicksThisSession.get() > 0) {
+                    totalActiveTimeMs / adClicksThisSession.get()
+                } else 0)
                 .build()
         )
 
-        // Send session end event
+        // Send session end event with context for locale info
         trackEvent(
-            AnalyticsEventBuilder(applicationContext!!)
+            AnalyticsEventBuilder(context)
                 .setEventType(AnalyticsEvent.EventType.SESSION_ENDED)
                 .setAdUnitId("session")
                 .addMetadata("session_duration_ms", sessionDuration)

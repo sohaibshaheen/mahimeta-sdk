@@ -186,7 +186,7 @@ class MahimetaAdView @JvmOverloads constructor(
                     AnalyticsEvent.EventType.AD_FAILED_TO_LOAD,
                     adView?.adUnitId ?: "unknown",
                     mapOf(
-                        "error_code" to error.code,
+                        "error_code" to error.code.toString(),
                         "error_domain" to error.domain,
                         "error_message" to (error.message ?: "Unknown error")
                     )
@@ -225,7 +225,12 @@ class MahimetaAdView @JvmOverloads constructor(
                 // Track ad impression event
                 AnalyticsManager.trackEvent(
                     AnalyticsEvent.EventType.AD_IMPRESSION,
-                    adView?.adUnitId ?: "unknown"
+                    adView?.adUnitId ?: "unknown",
+                    mapOf(
+                        "ad_network" to (adView?.responseInfo?.mediationAdapterClassName ?: "unknown"),
+                        "ad_width" to (adView?.adSize?.getWidthInPixels(context) ?: 0).toString(),
+                        "ad_height" to (adView?.adSize?.getHeightInPixels(context) ?: 0).toString()
+                    )
                 )
             }
 
@@ -248,8 +253,8 @@ class MahimetaAdView @JvmOverloads constructor(
                     AnalyticsEvent.EventType.AD_CLOSED,
                     adView?.adUnitId ?: "unknown",
                     mapOf(
-                        "view_duration_ms" to viewDurationMs,
-                        "view_duration_seconds" to (viewDurationMs / 1000.0)
+                        "view_duration_ms" to viewDurationMs.toString(),
+                        "view_duration_seconds" to (viewDurationMs / 1000.0).toString()
                     )
                 )
             }

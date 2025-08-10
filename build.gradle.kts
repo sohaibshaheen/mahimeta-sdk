@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.github.sohaibshaheen"
-version = "1.0.9"
+version = "1.0.10"
 
 android {
     namespace = "com.mahimeta.sdk"
@@ -29,6 +29,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
 
@@ -68,6 +72,11 @@ val sourcesJar by tasks.registering(Jar::class) {
     from(android.sourceSets["main"].java.srcDirs)
 }
 
+tasks.whenTaskAdded {
+    if (name == "sourcesJar") {
+        enabled = false
+    }
+}
 afterEvaluate {
     publishing {
         publications {
@@ -82,7 +91,7 @@ afterEvaluate {
                 }
 
                 // Sources JAR
-                artifact(sourcesJar.get())
+//                artifact(sourcesJar.get())
 
                 // Add dependencies to POM
                 pom.withXml {
